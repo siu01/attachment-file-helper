@@ -99,6 +99,12 @@ function showMessage(message) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "findInPage") {
+    const query = String(message.query || "").trim();
+    sendResponse({ found: Boolean(query && window.find(query, false, false, true)) });
+    return true;
+  }
+
   if (message?.type === "scanAttachments") {
     sendResponse({ attachments: collectAttachments(), pageTitle: document.title });
     return true;

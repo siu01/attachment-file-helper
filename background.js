@@ -128,6 +128,30 @@ async function saveFilesToFolder(attachments, folderName, tabId) {
   return { savedCount, failedCount };
 }
 
+async function saveClassroomBookmark(bookmark) {
+  const url = normalizeUrl(bookmark?.url);
+  if (!url || !/^https:\/\/classroom\.google\.com\//i.test(url)) {
+    throw new Error("Google Classroom のページだけ保存できます。");
+  }
+
+  const stored = await chrome.storage.local.get({ classroomBookmarks: [] });
+  const bookmarks = stored.classroomBookmarks.filter((item) => item.url !== url);
+  bookmarks.unshift({
+    url,
+    title: String(bookmark.title || "Classroom ページ").slice(0, 160),
+    savedAt: new Date().toISOString()
+  });
+
+  await chrome.storage.local.set({ classroomBookmarks: bookmarks.slice(0, 100) });
+  return bookmarks[0];
+}
+
+async function deleteClassroomBookmark(url) {
+  const stored = await chrome.storage.local.get({ classroomBookmarks: [] });
+  const bookmarks = stored.classroomBookmarks.filter((item) => item.url !== url);
+  await chrome.storage.local.set({ classroomBookmarks: bookmarks });
+}
+
 async function performAction(action, url, tabId) {
   if (!url) throw new Error("対象の URL を取得できませんでした。");
 
@@ -152,6 +176,20 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "saveClassroomBookmark") {
+    saveClassroomBookmark(message.bookmark)
+      .then((bookmark) => sendResponse({ ok: true, bookmark }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message?.type === "deleteClassroomBookmark") {
+    deleteClassroomBookmark(message.url)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message?.type === "saveAttachmentsToFolder") {
     saveFilesToFolder(message.attachments, message.folderName, message.tabId || sender.tab?.id)
       .then((result) => sendResponse({ ok: true, ...result }))

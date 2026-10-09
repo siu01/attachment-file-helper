@@ -5,7 +5,8 @@
   "description": "添付ファイルやリンクを、右クリックまたはポップアップから開く・保存する Chrome 拡張機能です。",
   "permissions": [
     "contextMenus",
-    "downloads"
+    "downloads",
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"

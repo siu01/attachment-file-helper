@@ -5,9 +5,18 @@ const refreshButton = document.querySelector("#refresh");
 const bulkActionsElement = document.querySelector("#bulk-actions");
 const folderNameInput = document.querySelector("#folder-name");
 const saveAllButton = document.querySelector("#save-all");
+const classroomToolsElement = document.querySelector("#classroom-tools");
+const pageSearchInput = document.querySelector("#page-search");
+const findPageButton = document.querySelector("#find-page");
+const saveClassroomPageButton = document.querySelector("#save-classroom-page");
+const savedPagesElement = document.querySelector("#saved-pages");
 
 let activeTab = null;
 let currentAttachments = [];
+
+function isClassroomUrl(url) {
+  return /^https:\/\/classroom\.google\.com\//i.test(url || "");
+}
 
 function setStatus(message) {
   statusElement.textContent = message;
@@ -102,6 +111,80 @@ function saveAllAttachments() {
   );
 }
 
+function sendFindRequest() {
+  const query = pageSearchInput.value.trim();
+  if (!query || !activeTab?.id) return;
+
+  chrome.tabs.sendMessage(activeTab.id, { type: "findInPage", query }, (response) => {
+    if (chrome.runtime.lastError || !response?.found) {
+      setStatus(`「${query}」は見つかりませんでした`);
+      return;
+    }
+    setStatus(`「${query}」を見つけました。検索ボタンで次の場所へ移動できます`);
+  });
+}
+
+function renderSavedPages(bookmarks) {
+  savedPagesElement.replaceChildren();
+  if (!bookmarks.length) return;
+
+  for (const bookmark of bookmarks.slice(0, 8)) {
+    const row = document.createElement("div");
+    row.className = "saved-page";
+    const title = document.createElement("div");
+    title.className = "saved-page-title";
+    title.textContent = bookmark.title;
+
+    const actions = document.createElement("div");
+    actions.className = "saved-page-actions";
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.textContent = "開く";
+    openButton.addEventListener("click", () => sendAction("open-new", bookmark.url, openButton));
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "削除";
+    deleteButton.addEventListener("click", () => {
+      chrome.runtime.sendMessage(
+        { type: "deleteClassroomBookmark", url: bookmark.url },
+        (response) => {
+          if (chrome.runtime.lastError || !response?.ok) return;
+          loadSavedPages();
+        }
+      );
+    });
+    actions.append(openButton, deleteButton);
+    row.append(title, actions);
+    savedPagesElement.append(row);
+  }
+}
+
+function loadSavedPages() {
+  chrome.storage.local.get({ classroomBookmarks: [] }, (result) => {
+    renderSavedPages(result.classroomBookmarks || []);
+  });
+}
+
+function saveClassroomPage() {
+  if (!activeTab?.url) return;
+  saveClassroomPageButton.disabled = true;
+  chrome.runtime.sendMessage(
+    {
+      type: "saveClassroomBookmark",
+      bookmark: { url: activeTab.url, title: pageLabelElement.textContent }
+    },
+    (response) => {
+      saveClassroomPageButton.disabled = false;
+      if (chrome.runtime.lastError || !response?.ok) {
+        setStatus(response?.error || "ページを保存できませんでした");
+        return;
+      }
+      setStatus("Classroom ページを保存しました");
+      loadSavedPages();
+    }
+  );
+}
+
 async function loadAttachments() {
   refreshButton.disabled = true;
   setStatus("読み込み中…");
@@ -109,6 +192,10 @@ async function loadAttachments() {
   try {
     [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!activeTab?.id) throw new Error("現在のタブを取得できませんでした。");
+
+    const classroomPage = isClassroomUrl(activeTab.url);
+    classroomToolsElement.hidden = !classroomPage;
+    if (classroomPage) loadSavedPages();
 
     const response = await chrome.tabs.sendMessage(activeTab.id, { type: "scanAttachments" });
     pageLabelElement.textContent = response.pageTitle || activeTab.url || "現在のページ";
@@ -119,6 +206,7 @@ async function loadAttachments() {
     folderNameInput.value = "添付ファイル";
     currentAttachments = [];
     bulkActionsElement.hidden = true;
+    classroomToolsElement.hidden = true;
     setStatus("このページでは一覧表示できません。リンクを右クリックして操作してください。");
     listElement.replaceChildren();
   } finally {
@@ -128,4 +216,9 @@ async function loadAttachments() {
 
 refreshButton.addEventListener("click", loadAttachments);
 saveAllButton.addEventListener("click", saveAllAttachments);
+findPageButton.addEventListener("click", sendFindRequest);
+pageSearchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") sendFindRequest();
+});
+saveClassroomPageButton.addEventListener("click", saveClassroomPage);
 loadAttachments();
