@@ -2,8 +2,12 @@ const statusElement = document.querySelector("#status");
 const listElement = document.querySelector("#attachment-list");
 const pageLabelElement = document.querySelector("#page-label");
 const refreshButton = document.querySelector("#refresh");
+const bulkActionsElement = document.querySelector("#bulk-actions");
+const folderNameInput = document.querySelector("#folder-name");
+const saveAllButton = document.querySelector("#save-all");
 
 let activeTab = null;
+let currentAttachments = [];
 
 function setStatus(message) {
   statusElement.textContent = message;
@@ -34,7 +38,9 @@ function sendAction(action, url, button) {
 }
 
 function renderAttachments(attachments) {
+  currentAttachments = attachments;
   listElement.replaceChildren();
+  bulkActionsElement.hidden = !attachments.length;
   if (!attachments.length) {
     setStatus("添付ファイル候補が見つかりませんでした。リンクを右クリックして操作できます。");
     return;
@@ -73,6 +79,29 @@ function renderAttachments(attachments) {
   }
 }
 
+function saveAllAttachments() {
+  if (!activeTab?.id || !currentAttachments.length) return;
+
+  saveAllButton.disabled = true;
+  setStatus(`${currentAttachments.length} 件を保存中…`);
+  chrome.runtime.sendMessage(
+    {
+      type: "saveAttachmentsToFolder",
+      attachments: currentAttachments,
+      folderName: folderNameInput.value || pageLabelElement.textContent,
+      tabId: activeTab.id
+    },
+    (response) => {
+      saveAllButton.disabled = false;
+      if (chrome.runtime.lastError || !response?.ok) {
+        setStatus(response?.error || "まとめて保存に失敗しました");
+        return;
+      }
+      setStatus(`${response.savedCount} 件の保存を開始しました`);
+    }
+  );
+}
+
 async function loadAttachments() {
   refreshButton.disabled = true;
   setStatus("読み込み中…");
@@ -83,9 +112,13 @@ async function loadAttachments() {
 
     const response = await chrome.tabs.sendMessage(activeTab.id, { type: "scanAttachments" });
     pageLabelElement.textContent = response.pageTitle || activeTab.url || "現在のページ";
+    folderNameInput.value = response.pageTitle || "添付ファイル";
     renderAttachments(response.attachments || []);
   } catch {
     pageLabelElement.textContent = "このページを読み取れません";
+    folderNameInput.value = "添付ファイル";
+    currentAttachments = [];
+    bulkActionsElement.hidden = true;
     setStatus("このページでは一覧表示できません。リンクを右クリックして操作してください。");
     listElement.replaceChildren();
   } finally {
@@ -94,4 +127,5 @@ async function loadAttachments() {
 }
 
 refreshButton.addEventListener("click", loadAttachments);
+saveAllButton.addEventListener("click", saveAllAttachments);
 loadAttachments();

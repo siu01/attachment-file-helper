@@ -8,6 +8,11 @@ import {
   looksLikeAttachment,
   normalizeUrl
 } from "../src/url-utils.js";
+import {
+  buildDownloadPath,
+  getDownloadFilename,
+  sanitizeFolderName
+} from "../src/download-utils.js";
 
 test("normalizes relative URLs when a base is supplied", () => {
   assert.equal(
@@ -39,4 +44,16 @@ test("detects attachment-like links", () => {
 test("prefers a human-readable label for display names", () => {
   assert.equal(getDisplayName("https://example.com/a.pdf", "  仕様書  "), "仕様書");
   assert.equal(getDisplayName("https://example.com/a%20file.pdf"), "a file.pdf");
+});
+
+test("builds safe download paths inside a page folder", () => {
+  assert.equal(sanitizeFolderName("授業 / 第1回"), "授業 - 第1回");
+  assert.equal(
+    buildDownloadPath("第1回 / 課題", "https://example.com/report.pdf", "レポート", 1),
+    "添付ファイルかんたん操作/第1回 - 課題/レポート.pdf"
+  );
+  assert.equal(
+    getDownloadFilename("https://example.com/photo.jpg", "ダウンロード", 2),
+    "photo.jpg"
+  );
 });

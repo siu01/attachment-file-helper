@@ -17,6 +17,13 @@
       </header>
 
       <section id="status" class="status" role="status">読み込み中…</section>
+      <section id="bulk-actions" class="bulk-actions" hidden>
+        <label for="folder-name">保存先フォルダ名</label>
+        <div class="bulk-row">
+          <input id="folder-name" type="text" maxlength="80" placeholder="ページ名">
+          <button id="save-all" type="button">まとめて保存</button>
+        </div>
+      </section>
       <section id="attachment-list" class="attachment-list" aria-live="polite"></section>
 
       <footer class="footer">
