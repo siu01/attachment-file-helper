@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "添付ファイルかんたん操作",
+  "version": "1.0.0",
+  "description": "添付ファイルやリンクを、右クリックまたはポップアップから開く・保存する Chrome 拡張機能です。",
+  "permissions": [
+    "contextMenus",
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "添付ファイルかんたん操作",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
